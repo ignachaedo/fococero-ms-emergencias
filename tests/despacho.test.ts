@@ -1,3 +1,9 @@
+/**
+ * Pruebas de integración para el flujo de Despachos de ms-emergencias
+ * 
+ * @module despacho
+ */
+
 import request from 'supertest';
 import app from '../src/app';
 import { envs } from '../src/config/envs';
