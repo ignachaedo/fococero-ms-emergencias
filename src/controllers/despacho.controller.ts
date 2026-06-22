@@ -1,3 +1,9 @@
+/**
+ * @fileoverview Controlador de despacho de emergencias.
+ * Gestiona el envío de alertas a organismos externos, reintentos de despachos
+ * fallidos, consulta de estado y actualización asíncrona mediante webhooks.
+ */
+
 import { Request, Response } from 'express';
 import { DespachoService } from '../services/despacho.service';
 import { DespachoRepository } from '../repositories/despacho.repository';
@@ -10,7 +16,10 @@ import { Logger } from '../helpers/logger';
 
 export class DespachoController {
     /**
-     * @POST Inicia un nuevo proceso de despacho.
+     * Inicia un nuevo proceso de despacho hacia un organismo externo.
+     *
+     * @param req - Request con body con datos del despacho
+     * @param res - Response 201 con resultado del despacho
      */
     static create = asyncHandler(async (req: Request, res: Response) => {
         const result = await DespachoService.procesarDespacho(req.body);
@@ -18,7 +27,10 @@ export class DespachoController {
     });
 
     /**
-     * @POST Dispara manualmente el reintento de todos los despachos fallidos.
+     * Dispara manualmente el reintento de todos los despachos fallidos en segundo plano.
+     *
+     * @param _req - Request (no utilizado)
+     * @param res - Response 202 indicando que el proceso se inició
      */
     static retry = asyncHandler(async (_req: Request, res: Response) => {
         // En producción, esto no se espera, se lanza en background
@@ -29,7 +41,11 @@ export class DespachoController {
     });
 
     /**
-     * @GET Consulta los despachos asociados a un correlation_id.
+     * Consulta los despachos asociados a un correlation_id.
+     *
+     * @param req - Request con params.correlation_id
+     * @param res - Response con lista de despachos encontrados
+     * @throws AppError(404) - Si no hay registros para ese ID
      */
     static getStatus = asyncHandler(async (req: Request, res: Response) => {
         const correlation_id = req.params.correlation_id as string;
@@ -44,7 +60,12 @@ export class DespachoController {
     });
 
     /**
-     * @PATCH Recibe actualizaciones de estado asíncronas (Webhooks de Bomberos/CONAF).
+     * Recibe actualizaciones de estado asíncronas vía webhook desde organismos externos.
+     *
+     * @param req - Request con params.id y body.estado
+     * @param res - Response 200 confirmando la actualización
+     * @throws AppError(404) - Si el despacho no existe
+     * @throws AppError(400) - Si la transición de estado no es válida
      */
     static updateStatus = asyncHandler(async (req: Request, res: Response) => {
         const id = req.params.id as string;

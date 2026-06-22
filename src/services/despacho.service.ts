@@ -1,3 +1,10 @@
+/**
+ * @fileoverview Servicio de despacho de emergencias a organismos externos.
+ * Orquesta el envío de alertas a Bomberos, CONAF, Carabineros, SENAPRED y otros
+ * organismos, con reintentos automáticos, control de concurrencia y trazabilidad
+ * completa mediante correlation_id.
+ */
+
 import { AxiosError } from 'axios';
 import { externalHttpClient } from '../config/httpClient';
 import { envs } from '../config/envs';
@@ -11,8 +18,17 @@ import {
     IDespacho,
 } from '../models/despacho.model';
 
+/** Nivel máximo de concurrencia para reintentos batch */
 const BATCH_CONCURRENCY = 3;
 
+/**
+ * Ejecuta una función asíncrona sobre un array de items en lotes concurrentes.
+ *
+ * @param items - Array de elementos a procesar
+ * @param fn - Función asíncrona a ejecutar por cada elemento
+ * @param batchSize - Tamaño del lote (concurrencia máxima)
+ * @returns Resultados de todas las promesas (settled)
+ */
 async function runBatch<T>(
     items: T[],
     fn: (item: T) => Promise<void>,
@@ -66,6 +82,12 @@ export class DespachoService {
         return finalLog;
     }
 
+    /**
+     * Reintenta todos los despachos fallidos pendientes con control de concurrencia.
+     *
+     * @description Procesa los despachos en lotes de BATCH_CONCURRENCY (3) para
+     * no saturar los endpoints externos. Los reintentos fallidos se loguean.
+     */
     static async reintentarDespachosFallidos(): Promise<void> {
         const fallidos = await DespachoRepository.getPendingRetries();
         if (fallidos.length === 0) return;
@@ -93,6 +115,14 @@ export class DespachoService {
         }
     }
 
+    /**
+     * Maneja errores de despacho, registrando el fallo en base de datos.
+     *
+     * @param logId - ID del registro de despacho
+     * @param organismo - Nombre del organismo destino
+     * @param error - Error capturado (puede ser AxiosError)
+     * @throws AppError - Siempre lanza error con mensaje descriptivo
+     */
     private static async handleDespachoError(
         logId: string,
         organismo: string,
@@ -123,6 +153,13 @@ export class DespachoService {
         throw new AppError(`Fallo crítico en despacho a ${organismo}: ${errorMsg}`, statusCode);
     }
 
+    /**
+     * Obtiene la API Key configurada para un organismo externo.
+     *
+     * @param organismo - Tipo de organismo
+     * @returns API Key del organismo
+     * @throws AppError(501) - Si el organismo no tiene API Key configurada
+     */
     private static getApiKey(organismo: OrganismoType): string {
         const keyMap: Record<OrganismoType, string | undefined> = {
             [OrganismoType.BOMBEROS]: envs.BOMBEROS_API_KEY,
@@ -144,6 +181,12 @@ export class DespachoService {
         return key;
     }
 
+    /**
+     * Valida que la URL del endpoint esté en la lista blanca de dominios permitidos.
+     *
+     * @param url - URL del endpoint a validar
+     * @throws AppError(400) - Si la URL no está en los patrones permitidos
+     */
     private static validateEndpointUrl(url: string): void {
         const allowedPatterns = [
             /^https:\/\/(api\.)?(bomberos|conaf|carabineros|senapred)\.cl\//,

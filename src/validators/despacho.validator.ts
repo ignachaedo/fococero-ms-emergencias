@@ -1,6 +1,13 @@
+/**
+ * @fileoverview Esquemas Zod y utilidades de validación para despachos a organismos externos.
+ * Define reglas de transición de estados, validación de URLs permitidas y schemas
+ * para creación y actualización de despachos.
+ */
+
 import { z } from 'zod';
 import { OrganismoType, PrioridadType, DespachoStatus } from '../models/despacho.model';
 
+/** Mapa de transiciones válidas entre estados de despacho */
 const VALID_TRANSITIONS: Record<DespachoStatus, DespachoStatus[]> = {
     [DespachoStatus.PENDIENTE]: [DespachoStatus.PROCESANDO, DespachoStatus.CANCELADO],
     [DespachoStatus.PROCESANDO]: [DespachoStatus.EXITOSO, DespachoStatus.FALLIDO, DespachoStatus.CANCELADO],
@@ -10,8 +17,14 @@ const VALID_TRANSITIONS: Record<DespachoStatus, DespachoStatus[]> = {
     [DespachoStatus.CANCELADO]: [],
 };
 
+/** Patrón de URLs permitidas para endpoints de organismos */
 const urlAllowlistPattern = /^https:\/\/(api\.)?(bomberos|conaf|carabineros|senapred)\.cl\//;
 
+/**
+ * Esquema para validar la creación de un despacho.
+ * Requiere alerta_id, correlation_id, organismo, prioridad, endpoint_url y request_payload.
+ * Valida que la URL del endpoint esté en la lista de dominios permitidos.
+ */
 export const createDespachoSchema = z.object({
     body: z.object({
         alerta_id: z.string().uuid('alerta_id inválido'),
@@ -32,6 +45,10 @@ export const createDespachoSchema = z.object({
     }),
 });
 
+/**
+ * Esquema para validar la actualización de estado de un despacho.
+ * Recibe un UUID por parámetro y un estado válido del enum DespachoStatus.
+ */
 export const updateStatusSchema = z.object({
     params: z.object({
         id: z.string().uuid('ID de despacho inválido'),
@@ -43,6 +60,13 @@ export const updateStatusSchema = z.object({
     }),
 });
 
+/**
+ * Verifica si una transición de estado es válida según las reglas de máquina de estados.
+ *
+ * @param currentStatus - Estado actual del despacho
+ * @param nextStatus - Estado al que se desea transitar
+ * @returns true si la transición está permitida, false en caso contrario
+ */
 export function isValidTransition(
     currentStatus: DespachoStatus,
     nextStatus: DespachoStatus,

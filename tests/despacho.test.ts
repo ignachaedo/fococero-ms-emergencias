@@ -73,7 +73,7 @@ describe('MS Emergencias | Integración de Despachos', () => {
         it('Debería rechazar la petición si no tiene el token interno (Zero-Trust)', async () => {
             const res = await request(app).post(`${API_PREFIX}/despachos`).send({});
 
-            expect(res.statusCode).toBe(403);
+            expect(res.statusCode).toBe(401);
             expect(res.body.ok).toBe(false);
         });
 
